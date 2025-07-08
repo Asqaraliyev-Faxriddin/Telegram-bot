@@ -54,7 +54,7 @@ export class UpdateBot {
         console.log(res);
         
       if (status === 'left' || status !== "member") {
-        throw ctx.reply("⛔ Bot ishlashi uchun quyidagi kanalga azo bo'ling: @Faxriddin_clever")
+        throw ctx.reply("⛔Bot ishlashi uchun quyidagi kanalga azo bo'ling: @Faxriddin_clever")
       }
 
       let oldUser = await this.prisma.user.findFirst({
