@@ -53,7 +53,7 @@ export class UpdateBot {
       let status = res.status
         console.log(res);
         
-      if (status === 'left' || status !== "member") {
+      if (status === 'left' || status != "member") {
         throw ctx.reply("⛔Bot ishlashi uchun quyidagi kanalga azo bo'ling: @Faxriddin_clever")
       }
 
