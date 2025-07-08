@@ -13,9 +13,50 @@ export class UpdateBot {
     constructor(private readonly prisma: PrismaService) {}
 
 
+    @Command('help')
+    async help(@Ctx() ctx: Context) {
+      return ctx.reply(
+ `Yordam:  
+  /start - Botni ishga tushirish
+  /help - Yordam
+  /info - Profil malumotlaringiz
+  /bot_info - Bot haqida,
+  `
+      )
+    }
+  
+    @Command('info')
+    async info(@Ctx() ctx: Context) {
+      const user = ctx.from!
+      throw ctx.reply(`👤 Siz haqingizda malumot:
+  🧑 Ism: ${user.first_name}
+  🔤 Username: @${user.username || 'yoq'}
+  🆔 Telegram ID: ${user.id}`)
+    }
+  
+    @Command('bot_info')
+    async botInfo(@Ctx() ctx: Context) {
+      throw ctx.reply(`🤖 Bu bot @Faxriddin_clever tomonidan ishlab chiqilgan.
+  U foydalanuvchilardan ro'yxatdan o'tishini, kanalga azo bo'lishini va boshqa xizmatlarni amalga oshiradi.`)
+    }
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     @Hears(/^\/(?!start|delete\/user).*$/)
     async invalidCommand(@Ctx() ctx: Context) {
-        throw ctx.reply("❌ Noma'lum buyruq! Faqat /start yoki /delete/user ni ishlating.")
+        throw ctx.reply(`❌ Noma'lum buyruq! Faqat /start yoki /delete/user ni ishlating.`)
     }
     
 
@@ -26,7 +67,7 @@ export class UpdateBot {
     @Hears("/delete/user")
     async deleteUser(@Ctx() ctx:Context){
     let data = await this.prisma.user.findFirst({where:{telegram_id:ctx.from!.id}})
-    if(!data) throw ctx.reply("Siz hali ro'yxatdan o'tmagansiz !!!\n/start buyrug'ini kiriting")
+    if(!data) throw ctx.reply(`Siz hali ro'yxatdan o'tmagansiz !!!\n /start buyrug'ini kiriting`)
      await this.prisma.user.delete({where:{telegram_id:ctx.from!.id}})
     
         UserState.delete(ctx.from!.id)
