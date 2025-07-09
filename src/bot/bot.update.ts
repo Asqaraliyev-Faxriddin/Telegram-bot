@@ -29,7 +29,7 @@ export class UpdateBot {
     @Hears("/delete")
     async deleteUser(@Ctx() ctx:Context){
     let data = await this.prisma.user.findFirst({where:{telegram_id:ctx.from!.id}})
-    if(!data) throw ctx.reply(`Siz hali ro'yxatdan o'tmagansiz !!!\n /start buyrug'ini kiriting\n /start ni bosing`)
+    if(!data) throw ctx.reply(`Siz hali ro'yxatdan o'tmagansiz !!!\n /start buyrug'ini kiriting`)
      await this.prisma.user.delete({where:{telegram_id:ctx.from!.id}})
     
         UserState.delete(ctx.from!.id)
