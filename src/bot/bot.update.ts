@@ -2,7 +2,6 @@ import { Action, Command, Ctx, Hears, On, Start, Update } from "nestjs-telegraf"
 import { reduce } from "rxjs"
 import { UserState } from "src/common/user.state"
 import { PrismaService } from "src/core/prisma/prisma.service"
-import { generateCertificate } from "src/sertificat"
 import { Context, Telegraf } from "telegraf"
 
 
@@ -121,16 +120,6 @@ export class UpdateBot {
 
 
     
-@Hears("/sertificat")
-async sertificat(@Ctx() ctx:Context){
-
-  const name = ctx.from?.first_name || 'Foydalanuvchi';
-  const fileName = `sertifikat-${ctx.from?.id}`;
-  const filePath = generateCertificate(name, fileName);
-
-  await ctx.replyWithDocument({ source: filePath });
-}
-
 
 
 @Start()
@@ -170,6 +159,7 @@ async sertificat(@Ctx() ctx:Context){
         throw ctx.reply("✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar o'chirmoqchi bo'lsangiz: /delete/user")
       }
 
+      await ctx.answerCbQuery()
       UserState.set(userId, { step: "firstname", data: {} })
       ctx.reply("Ismingizni kiriting:")
     } catch (err) {
