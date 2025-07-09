@@ -1,57 +1,51 @@
-import { Action, Command, Ctx, Hears, On, Start, Update } from "nestjs-telegraf"
-import { reduce } from "rxjs"
+import { Action, Hears, Ctx, On, Start, Update } from "nestjs-telegraf"
 import { UserState } from "src/common/user.state"
 import { PrismaService } from "src/core/prisma/prisma.service"
-import { Context, Telegraf } from "telegraf"
+import { Context } from "telegraf"
+import { keyboard } from "./reply.keyboard"
 
 
 
-let bot = new Telegraf(process.env.Bot_Token as string)
 
 @Update()
 export class UpdateBot {
     constructor(private readonly prisma: PrismaService) {}
 
 
-    @Command('help')
+    @Hears('/help')
     async help(@Ctx() ctx: Context) {
       return ctx.reply(
  `Yordam:  
   /start - Botni ishga tushirish
-  /help - Yordam
-  /info - Profil malumotlaringiz
-  /bot_info - Bot haqida,
+  🆘 Yordam - Yordam
+  Ma'lumotlarim - Profil malumotlaringiz
+  📋 Bot Haqida - Bot haqida,
   `
       )
     }
   
-    @Command('info')
+    @Hears("/my_info")
     async info(@Ctx() ctx: Context) {
-      const user = ctx.from!
-      throw ctx.reply(`👤 Siz haqingizda malumot:
-  🧑 Ism: ${user.first_name}
-  🔤 Username: @${user.username || 'yoq'}
-  🆔 Telegram ID: ${user.id}`)
+      const oldId = ctx.from!.id
+      let user = await this.prisma.user.findFirst({where:{telegram_id:oldId}})
+      if(!user) return ctx.reply("Siz hali o'yxatdan o'tmagansiz");
+    
+      throw ctx.reply(` 👤 Siz haqingizda malumot:\n
+  🧑 Ism: ${user?.firstname || "😀"} 
+  🔤 Familiya: @${user?.lastname || 'Nomalum'}
+  🆔 Yosh: ${user?.age || "🔞"} 
+  ☎️ Telefon: ${user?.contact || "📞"}
+  `)
+      
     }
   
-    @Command('bot_info')
+    @Hears('bot_information')
     async botInfo(@Ctx() ctx: Context) {
       return ctx.reply(`🤖 Bu bot @Faxriddin_clever tomonidan ishlab chiqilgan.
   U foydalanuvchilardan ro'yxatdan o'tishini, kanalga azo bo'lishini va boshqa xizmatlarni amalga oshiradi.`)
     }
 
 
-
-
-
-
-
-    // @Hears(/^\/(?!start|delete\/user).*$/)
-    // async invalidCommand(@Ctx() ctx: Context) {
-  
-    //     throw ctx.reply(`❌ Noma'lum buyruq! Faqat /start yoki /delete/user ni ishlating.`)
-    // }
-    
 
 
     @Action("check_subscription")
@@ -63,7 +57,7 @@ export class UpdateBot {
         try {
         
           
-          let res = await bot.telegram.getChatMember(chatId,userId)
+          let res = await ctx.telegram.getChatMember(chatId,userId)
           let status = res.status
             console.log(res);
             
@@ -102,11 +96,7 @@ export class UpdateBot {
     }
 
 
-
-
-
-
-    @Hears("/delete/user")
+    @Hears("/delete")
     async deleteUser(@Ctx() ctx:Context){
     let data = await this.prisma.user.findFirst({where:{telegram_id:ctx.from!.id}})
     if(!data) throw ctx.reply(`Siz hali ro'yxatdan o'tmagansiz !!!\n /start buyrug'ini kiriting`)
@@ -119,9 +109,6 @@ export class UpdateBot {
 }
 
 
-    
-
-
 @Start()
   async start(@Ctx() ctx: Context) {
     let userId = ctx.from!.id
@@ -130,11 +117,12 @@ export class UpdateBot {
     try {
     
       
-      let res = await bot.telegram.getChatMember(chatId,userId)
+      let res = await ctx.telegram.getChatMember(chatId,userId)
       let status = res.status
         console.log(res);
         
       if (status === 'left') {
+        ctx.reply("Xush kelibsiz!", keyboard.main)
         throw ctx.reply(
           `👋 Iltimos, quyidagi kanalga obuna bo'ling va "✅ Tekshirish" tugmasini bosing:\n\n` +
           `📢 @${'@Faxriddin_clever'}`,
@@ -156,18 +144,27 @@ export class UpdateBot {
     }})
 
       if (oldUser) {
-        throw ctx.reply("✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar o'chirmoqchi bo'lsangiz: /delete/user")
+        return ctx.reply("✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar o'chirmoqchi bo'lsangiz: /delete/user")
       }
 
       if (ctx.callbackQuery) {
         await ctx.answerCbQuery();
       }
       UserState.set(userId, { step: "firstname", data: {} })
+      ctx.reply("Xush kelibsiz!", keyboard.main)
       ctx.reply("Ismingizni kiriting:")
     } catch (err) {
       console.error(err)
     }
   }
+
+
+
+
+
+
+
+
 
     @On("text")
     async OnText(@Ctx() ctx: Context) {
@@ -225,6 +222,8 @@ export class UpdateBot {
         }
     }
 
+
+
     @On("contact")
     async OnContact(@Ctx() ctx: Context) {
         let userId = ctx.from!.id
@@ -241,7 +240,7 @@ export class UpdateBot {
                 throw ctx.reply("Boshqattan ro'yxatdan o'ting. /start")
             }
             let olduser = await this.prisma.user.findFirst({where:{telegram_id:ctx.from!.id}})
-            if(olduser) throw ctx.reply(`Siz oldin ro'yxatdan o'tgansiz!!!\n o'zingizni o'chirishingiz mumkin bosing: /delete/user`)
+            if(olduser) throw ctx.reply(`Siz oldin ro'yxatdan o'tgansiz!!!\n o'zingizni o'chirishingiz mumkin bosing: /delete`)
            
 
         await this.prisma.user.create({
@@ -256,7 +255,7 @@ export class UpdateBot {
 
         
         UserState.delete(userId)
-        ctx.reply("✅✅ Ma'lumotlaringiz saqlandi.")
+        ctx.reply("✅✅ Ma'lumotlaringiz saqlandi.",keyboard.main)
     }
 }
 
