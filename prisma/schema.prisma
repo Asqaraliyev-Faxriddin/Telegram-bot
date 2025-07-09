@@ -19,7 +19,10 @@ model User {
   lastname String
   age Int
   contact String @unique
+  region String
   telegram_id BigInt @unique
+  sertificat_count Int @default(0)
+  sertificatian_Date DateTime @default(now())
 
   @@map("users")
 }

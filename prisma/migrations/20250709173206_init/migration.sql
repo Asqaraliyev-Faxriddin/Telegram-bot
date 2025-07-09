@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN     "sertificatian_Date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

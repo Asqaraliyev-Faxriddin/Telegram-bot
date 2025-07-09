@@ -1,4 +1,4 @@
-type userState = 'firstname' | 'lastname' | 'age' | 'contact'
+type userState = 'firstname' | 'lastname' | 'age' | 'contact'| "region"
 
 interface userData {
     step:userState,
@@ -6,7 +6,8 @@ interface userData {
         firstname?:string,
         lastname?:string,
         age?:number,
-        contact?:string
+        contact?:string,
+        region?:string
     }
 }
 

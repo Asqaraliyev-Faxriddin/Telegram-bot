@@ -4,9 +4,11 @@ export const keyboard = {
   main: Markup.keyboard([
 
     ["/start"],
-    [ "my_info", "help"],
-    ["delete"],
-    ["bot_information"]
+    [ "/my_info", "/help"],
+    ["/bot_information","/sertificate"],
+    ["/delete"],
+
+
 
 ])
     .resize()

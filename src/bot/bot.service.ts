@@ -33,7 +33,13 @@ export class BotService implements OnModuleInit {
             {
                 command:"my_info",description:"o'z malumotlaolish"
 
-            }
+            },
+
+            {
+                command:"sertificate",description:"o'z sertifikatini olish"
+
+            },
+
         ])
     }
 }
