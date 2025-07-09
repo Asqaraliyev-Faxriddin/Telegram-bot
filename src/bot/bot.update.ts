@@ -159,7 +159,9 @@ export class UpdateBot {
         throw ctx.reply("✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar o'chirmoqchi bo'lsangiz: /delete/user")
       }
 
-      await ctx.answerCbQuery()
+      if (ctx.callbackQuery) {
+        await ctx.answerCbQuery();
+      }
       UserState.set(userId, { step: "firstname", data: {} })
       ctx.reply("Ismingizni kiriting:")
     } catch (err) {
