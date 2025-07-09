@@ -1,7 +1,8 @@
-import { Command, Ctx, Hears, On, Start, Update } from "nestjs-telegraf"
+import { Action, Command, Ctx, Hears, On, Start, Update } from "nestjs-telegraf"
 import { reduce } from "rxjs"
 import { UserState } from "src/common/user.state"
 import { PrismaService } from "src/core/prisma/prisma.service"
+import { generateCertificate } from "src/sertificat"
 import { Context, Telegraf } from "telegraf"
 
 
@@ -36,29 +37,71 @@ export class UpdateBot {
   
     @Command('bot_info')
     async botInfo(@Ctx() ctx: Context) {
-      throw ctx.reply(`🤖 Bu bot @Faxriddin_clever tomonidan ishlab chiqilgan.
+      return ctx.reply(`🤖 Bu bot @Faxriddin_clever tomonidan ishlab chiqilgan.
   U foydalanuvchilardan ro'yxatdan o'tishini, kanalga azo bo'lishini va boshqa xizmatlarni amalga oshiradi.`)
     }
+
+
+
+
+
+
+
+    // @Hears(/^\/(?!start|delete\/user).*$/)
+    // async invalidCommand(@Ctx() ctx: Context) {
   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    @Hears(/^\/(?!start|delete\/user).*$/)
-    async invalidCommand(@Ctx() ctx: Context) {
-        throw ctx.reply(`❌ Noma'lum buyruq! Faqat /start yoki /delete/user ni ishlating.`)
-    }
+    //     throw ctx.reply(`❌ Noma'lum buyruq! Faqat /start yoki /delete/user ni ishlating.`)
+    // }
     
+
+
+    @Action("check_subscription")
+    async check_subcription(@Ctx() ctx:Context){
+    
+        let userId = ctx.from!.id
+        let chatId = -1002184621857
+    
+        try {
+        
+          
+          let res = await bot.telegram.getChatMember(chatId,userId)
+          let status = res.status
+            console.log(res);
+            
+          if (status === 'left') {
+            throw ctx.reply(
+              `👋 Iltimos, quyidagi kanalga obuna bo'ling va "✅ Tekshirish" tugmasini bosing:\n\n` +
+              `📢 @${'@Faxriddin_clever'}`,
+              {
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '➕ Kanal', url: `https://t.me/Faxriddin_clever` }],
+                    [{ text: '✅ Tekshirish', callback_data: 'check_subscription' }],
+                  ],
+                },
+              }
+            );
+      
+          }
+    
+          let oldUser = await this.prisma.user.findFirst({
+            where: { telegram_id:userId
+    
+        }})
+    
+          if (oldUser) {
+            throw ctx.reply("✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar o'chirmoqchi bo'lsangiz: /delete/user")
+          }
+    
+          UserState.set(userId, { step: "firstname", data: {} })
+          ctx.reply("Ismingizni kiriting:")
+        } catch (err) {
+          console.error(err)
+        }
+      
+
+    }
+
 
 
 
@@ -78,7 +121,15 @@ export class UpdateBot {
 
 
     
+@Hears("/sertificat")
+async sertificat(@Ctx() ctx:Context){
 
+  const name = ctx.from?.first_name || 'Foydalanuvchi';
+  const fileName = `sertifikat-${ctx.from?.id}`;
+  const filePath = generateCertificate(name, fileName);
+
+  await ctx.replyWithDocument({ source: filePath });
+}
 
 
 
@@ -95,7 +146,19 @@ export class UpdateBot {
         console.log(res);
         
       if (status === 'left') {
-        throw ctx.reply("⛔Bot ishlashi uchun quyidagi kanalga azo bo'ling: @Faxriddin_clever")
+        throw ctx.reply(
+          `👋 Iltimos, quyidagi kanalga obuna bo'ling va "✅ Tekshirish" tugmasini bosing:\n\n` +
+          `📢 @${'@Faxriddin_clever'}`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '➕ Kanal', url: `https://t.me/Faxriddin_clever` }],
+                [{ text: '✅ Tekshirish', callback_data: 'check_subscription' }],
+              ],
+            },
+          }
+        );
+  
       }
 
       let oldUser = await this.prisma.user.findFirst({
@@ -204,3 +267,5 @@ export class UpdateBot {
         ctx.reply("✅✅ Ma'lumotlaringiz saqlandi.")
     }
 }
+
+
