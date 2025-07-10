@@ -20,7 +20,7 @@ export async function addTextToImage(firstname: string, lastname: string): Promi
 
     return true;
   } catch (error) {
-    console.error('❌ Rasmga yozishda xatolik:', error);
+    console.error('Rasmga yozishda xatolik:', error);
     return false;
   }
 
