@@ -41,5 +41,6 @@ model Questions{
   Answer_count Int
   telegram_id BigInt
 
+@@map("questions")
 
 }
