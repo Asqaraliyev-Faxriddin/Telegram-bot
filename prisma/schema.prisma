@@ -23,6 +23,23 @@ model User {
   telegram_id BigInt @unique
   sertificat_count Int @default(0)
   sertificatian_Date DateTime @default(now())
+  role String @default("USER")
+   
 
   @@map("users")
+}
+
+
+model Questions{
+  id Int @id @default(autoincrement())
+  title String
+  A String
+  B String
+  C String
+  D String
+  Answer_Key String
+  Answer_count Int
+  telegram_id BigInt
+
+
 }
