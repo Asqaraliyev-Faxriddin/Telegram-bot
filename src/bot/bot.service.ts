@@ -31,12 +31,12 @@ export class BotService implements OnModuleInit {
             },
 
             {
-                command:"my_info",description:"o'z malumotlaolish"
+                command:"my_info",description:"o'zingizni shahsiy malumotlaringizni olasiz"
 
             },
 
             {
-                command:"sertificate",description:"o'z sertifikatini olish"
+                command:"sertificate",description:"o'zingizni sertifikatingizni olasiz\n🟥eslatma:Avval ro'yxatddan o'tgan bo'lishingiz kerak.\nro'yxatdan o'tish uchun shuni bosing:/start "
 
             },
 

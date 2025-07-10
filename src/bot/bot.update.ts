@@ -17,12 +17,17 @@ export class UpdateBot {
     async help(@Ctx() ctx: Context) {
       throw ctx.reply(
  `Yordam:  
-  /start - Botni ishga tushirish
-  🆘 Yordam - Yordam
-  Ma'lumotlarim - Profil malumotlaringiz
-  📋 Bot Haqida - Bot haqida,
+  
+💬 Bot Komandalari va Tushuntirishlari:
+
+/start  Siz bu orqali ro'yxatdan o'tasiz.
+/my_info  Siz haqingizdagi ma'lumotlarni ko'rsatadi.
+/help  Botdan qanday foydalanish kerakligi haqida yordam beradi.
+/bot_information  Bot haqida umumiy ma'lumotlar beradi.
+/sertificate  Shaxsiy sertifikatingizni olasiz .
+/delete  Botdan o'z ma'lumotlaringizni o'chiradi.
   `
-      )
+          )
     }
 
 
@@ -44,7 +49,8 @@ export class UpdateBot {
       let user = await this.prisma.user.findFirst({where:{telegram_id:oldId}})
       if(!user) throw ctx.reply("Siz hali o'yxatdan o'tmagansiz");
     
-      throw ctx.reply(` 👤 Siz haqingizda malumot:\n
+      throw ctx.reply(`  
+    👤 Siz haqingizda malumot:\n
   🧑 Ism: ${user?.firstname || "😀"} 
   🔤 Familiya: ${user?.lastname || 'Nomalum'}
   🆔 Yosh: ${user?.age || "🔞"} 
@@ -55,8 +61,7 @@ export class UpdateBot {
   
     @Hears('/bot_information')
     async botInfo(@Ctx() ctx: Context) {
-      throw ctx.reply(`🤖 Bu bot @Faxriddin_clever tomonidan ishlab chiqilgan.
-  U foydalanuvchilardan ro'yxatdan o'tishini, kanalga azo bo'lishini va boshqa xizmatlarni amalga oshiradi.`)
+      throw ctx.reply(` 🤖 Bu bot @Faxriddin_clever tomonidan ishlab chiqilgan.\n U foydalanuvchilardan ro'yxatdan o'tishini,\n kanalga azo bo'lishini va boshqa\n xizmatlarni amalga oshiradi.`)
     }
 
 
@@ -73,14 +78,14 @@ export class UpdateBot {
     const lastTime = user.sertificatian_Date
     const twoHoursInMs = 2 * 60 * 60 * 1000;
       if (user.sertificat_count >= 3 && now.getTime() - new Date(lastTime).getTime() < twoHoursInMs) {
-        return ctx.reply("❌ Siz 3 marta urindingiz. Iltimos, 2 soatdan keyin qayta urinib ko'ring. 😎");
+        throw ctx.reply("❌ Siz 3 marta urindingiz. Iltimos, 2 soatdan keyin qayta urinib ko'ring. 😎");
       }
     
       if (user.sertificat_count >= 3 && now.getTime() - new Date(lastTime).getTime() >= twoHoursInMs) {
         user.sertificat_count = 0;
       }
 
-
+    
 
     await addTextToImage(user.firstname,user.lastname)
 
@@ -183,7 +188,7 @@ export class UpdateBot {
       }})
 
         if (oldUser) {
-          throw ctx.reply(`✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar o'chirmoqchi bo'lsangiz: /delete`)
+          throw ctx.reply(`✅ Siz allaqachon ro'yxatdan o'tgansiz!\nAgar boshqattan ro'yxatdan o'tmoqchi bo'lsangiz\no'zingizni o'chirishingiz kerak bo'ladi\nbuning uchun esa shuni bosing: /delete`)
         }
         if (ctx.callbackQuery) {
           await ctx.answerCbQuery();
@@ -192,11 +197,7 @@ export class UpdateBot {
 
         UserState.set(userId, { step: "firstname", data: {} })
     
-        ctx.reply(`Xush kelibsiz !!!\n
-Ismingizni kiriting:
-          
-          
-          `, keyboard.main)
+        ctx.reply(`Ro'yxatdan o'tmoqdasiz:\n\nIsmingizni kiriting:`)
 
       } catch (err) {
         console.error(err)
