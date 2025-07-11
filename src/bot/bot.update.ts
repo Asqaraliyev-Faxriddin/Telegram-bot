@@ -4,8 +4,6 @@ import { Context } from "telegraf";
 import { UserState } from "src/common/user.state";
 import { RegistrationService, userTestStates } from "./registration/registration.service";
 import { keyboard } from "./reply.keyboard";
-import * as path from "path";
-import { addTextToImage } from "certificates/sertificat";
 import { AdminUtils } from "./bot.actions"; // ✅ to'g'ri import
 
 @Update()
@@ -36,7 +34,7 @@ async handleStats(@Ctx() ctx: Context) {
   const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || status === 'creator';
-  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yo‘q.');
+  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yoq.');
 
   const totalUsers = await this.prisma.user.count();
   const activeUsers = await this.prisma.user.count({ where: { isActive: true } });
@@ -66,10 +64,10 @@ async handleSendTest(@Ctx() ctx: Context) {
   const user = await this.prisma.user.findFirst({ where: { telegram_id: BigInt(userId) } });
   const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || status === 'creator';
-  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yo‘q.');
+  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yoq.');
 
-  await ctx.reply('📝 Test yuborish funksiyasi hali to‘liq ishlanmadi. Tez orada faollashtiriladi.');
-  // Optional: bu yerga test qo‘shish vaqti kelganda logika kiritiladi
+  await ctx.reply('📝 Test yuborish funksiyasi hali toliq ishlanmadi. Tez orada faollashtiriladi.');
+  // Optional: bu yerga test qoshish vaqti kelganda logika kiritiladi
 }
 
 @Hears('🧪 Testni boshlash')
@@ -103,7 +101,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
     await ctx.reply("🛡 Admin parolni kiriting:");
   }
 
-  @Hears("/search")
+  @Hears("😎Search")
   async searchStart(@Ctx() ctx: Context) {
     const userId = ctx.from!.id;
   
@@ -188,12 +186,12 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
         return;
       }
       await ctx.reply(
-        `👤 Siz haqingizdagi ma'lumotlar:\n\n` +
-        `🙋 Ism: ${user.firstname || "Noma'lum"}\n` +
-         ` 🙂Yosh:${user.age || 25}\n       `+
-        `🌤 Familiya: ${user.lastname || "Noma'lum"}\n` +
-        `🌍 Viloyat: ${user.region || "Noma'lum"}\n` +
-        `📞 Telefon: ${user.contact || "Ko'rsatilmagan"}`,
+        `👤 Siz haqingizdagi ma'lumotlar:\n\n 
+        🙋 Ism: ${user.firstname || "Noma'lum"}\n 
+        🙂 Yosh:${user.age || 25}\n
+        🌤 Familiya: ${user.lastname || "Noma'lum"}\n 
+        🌍 Viloyat: ${user.region || "Noma'lum"}\n
+        📞 Telefon: ${user.contact || "Ko'rsatilmagan"}`,
         { parse_mode: 'Markdown' }
       );
     } catch (err) {
@@ -212,7 +210,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
         `👤 *Nomi:* ${botInfo.first_name}\n` +
         `📄 *Username:* @${botInfo.username}\n` +
         `✅ *Botmi:* ${botInfo.is_bot ? 'Ha' : 'Yoq'}\n` +
-        `👨‍💻 *Yaratgan:* *@Asqaraliyev_Faxriddin*`
+        `👨‍💻 *Yaratgan odam:* *@Asqaraliyev_Faxriddin*`
       );
     } catch (err) {
       console.error(err);
@@ -227,8 +225,9 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
       `🗂 <b>Yordam menyusi</b>\n\n` +
       `Quyidagi buyruqlar orqali botdan foydalanishingiz mumkin:\n\n` +
       `✅ <b>/start</b> - Ro'yxatdan o'tish\n` +
-      `📘 <b>/start_test</b> - Testni boshlash\n` +
-      `📄 <b>/sertificate</b> - Sertifikatni yuklab olish\n` +
+      `📘 <b>/🧪 Testni boshlash</b> - Testni boshlash\n` +
+      `📘 <b>/malumotlarim</b> - malumotlaringiz\n` +
+      `📄 <b>/📄 Sertifikat olish</b> - Sertifikatni yuklab olish\n` +
       `🗑 <b>/delete</b> - Profilni o'chirish\n` +
       `<b>/help</b> - Yordam menyusi`,
       {
@@ -245,7 +244,6 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
   
     const text = ("text" in ctx.message!) ? ctx.message.text.trim() : "";
   
-    // ➕ Admin qo‘shish jarayoni
     if (this.awaitingAddAdmin.get(userId)) {
       this.awaitingAddAdmin.delete(userId);
   
@@ -255,7 +253,8 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
       const user = await this.prisma.user.findUnique({ where: { telegram_id: telegramId } });
       if (!user) return ctx.reply("❌ Bunday foydalanuvchi topilmadi.");
       if (user.role === 'ADMIN' || user.role === 'SUPERADMIN') {
-        return ctx.reply("ℹ️ Bu foydalanuvchi allaqachon admin.");
+         ctx.reply("ℹ️ Bu foydalanuvchi allaqachon admin.");
+         return
       }
   
       await this.prisma.user.update({
@@ -263,28 +262,28 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
         data: { role: 'ADMIN' },
       });
   
-      return ctx.reply(`✅ Foydalanuvchi (${user.firstname}) endi admin.`);
+       ctx.reply(`✅ Foydalanuvchi (${user.firstname}) endi admin.`);
+       return
     }
   
-    // ✅ KANALGA OBUNA TEKSHIRISH
     try {
       const member = await ctx.telegram.getChatMember('@Faxriddin_clever', userId);
       // @ts-ignore
       if (["left", "kicked"].includes(member.status)) {
-        return ctx.reply(
-          "🚫 Botdan foydalanish uchun avval kanalga obuna bo‘ling:",
+         ctx.reply(
+          "🚫 Botdan foydalanish uchun avval kanalga obuna boling:",
           {
             reply_markup: {
               inline_keyboard: [
                 [
                   {
-                    text: "📢 Kanalga obuna bo‘lish",
+                    text: "📢 Kanalga obuna bolish",
                     url: "https://t.me/Faxriddin_clever"
                   }
                 ],
                 [
                   {
-                    text: "✅ A’zolikni tekshirish",
+                    text: "✅ A'zolikni tekshirish",
                     callback_data: "check_membership"
                   }
                 ]
@@ -292,22 +291,25 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
             }
           }
         );
+        return
       }
     } catch (error) {
       console.error("Kanal tekshiruvida xatolik:", error);
-      return ctx.reply("❌ Kanalni tekshirib bo‘lmadi. Keyinroq urinib ko‘ring.");
+       ctx.reply("❌ Kanalni tekshirib bolmadi. Keyinroq urinib koring.");
+       return
     }
   
     // ✳️ BAZADAN USERNI QIDIRISH
     const user = await this.prisma.user.findFirst({ where: { telegram_id: BigInt(userId) } });
-    if (user?.isActive === false) return ctx.reply("🚫 Siz bloklangansiz. Botdan foydalanish mumkin emas.");
+    if (user?.isActive === false) { ctx.reply("🚫 Siz bloklangansiz. Botdan foydalanish mumkin emas.")
+       return } 
   
     if (user) {
       const role = user.role;
       const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
   
       if (role === 'SUPERADMIN' || role === 'ADMIN' || status === 'creator') {
-        return ctx.reply("👮‍♂️ Admin panelga xush kelibsiz!", {
+         ctx.reply("👮‍♂️ Admin panelga xush kelibsiz!", {
           reply_markup: {
             keyboard: [
               ['📊 Statistika', '👥 Foydalanuvchilar'],
@@ -316,18 +318,24 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
               ['🧪 Testni boshlash',"🚫 Blokldan chiqarish"],
               ['/bot_information','malumotlarim'],
               ['/delete',"💖Admin o'chirish"],
-              ['📄 Sertifikat olish','Yordam']
+              ['📄 Sertifikat olish','Yordam'],
+              ['😎Search']
             ],
             resize_keyboard: true,
             one_time_keyboard: false,
+            
           }
+        
         });
+
+        return
       } else {
          ctx.reply("👤 User panelga xush kelibsiz!", {
           reply_markup: {
             keyboard: [
               ['🧪 Testni boshlash','malumotlarim'],
               ['📄 Sertifikat olish','Yordam'],
+              ['/bot_information']
             ],
             resize_keyboard: true,
             one_time_keyboard: false,
@@ -337,7 +345,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
       }
     }
   
-    // FOYDALANUVCHI YO‘Q — YANGI RO‘YXAT BOSHLANADI
+    // FOYDALANUVCHI YOQ — YANGI ROYXAT BOSHLANADI
     UserState.set(userId, { step: "firstname", data: {} });
      ctx.reply("👋 Assalomu alaykum! Ismingizni kiriting:");
      return
@@ -361,16 +369,15 @@ async onText(@Ctx() ctx: Context) {
     const member = await ctx.telegram.getChatMember('@Faxriddin_clever', userId);
     // @ts-ignore
     if (["left", "kicked"].includes(member.status)) {
-      await ctx.reply("📛 Botdan foydalanish uchun avval @Faxriddin_clever kanaliga obuna bo‘ling.");
+      await ctx.reply("📛 Botdan foydalanish uchun avval @Faxriddin_clever kanaliga obuna boling.");
       return;
     }
   } catch (error) {
     console.error("Kanal tekshiruvida xatolik:", error);
-    await ctx.reply("❌ Kanalni tekshirib bo‘lmadi. Keyinroq urinib ko‘ring.");
+    await ctx.reply("❌ Kanalni tekshirib bolmadi. Keyinroq urinib koring.");
     return;
   }
 
-  // 1. Block/Unblock
   const blockAction = this.awaitingBlock.get(userId);
   if (blockAction === "block" || blockAction === "unblock") {
     this.awaitingBlock.delete(userId);
@@ -413,7 +420,7 @@ async onText(@Ctx() ctx: Context) {
       await this.prisma.user.delete({ where: { id: users[0].id } });
       await ctx.reply(`✅ ${users[0].firstname} o'chirildi.`);
     } else {
-      await ctx.reply("❗ Bir nechta foydalanuvchi topildi. Familiyasi bilan to‘liq yuboring.");
+      await ctx.reply("❗ Bir nechta foydalanuvchi topildi. Familiyasi bilan toliq yuboring.");
     }
     return;
   }
@@ -433,7 +440,7 @@ async onText(@Ctx() ctx: Context) {
           `🆔 ID: ${user.telegram_id}\n` +
           `👤 Ism: ${user.firstname}\n` +
           `📍 Viloyat: ${user.region}\n` +
-          `📞 Tel: ${user.contact || "yo‘q"}`
+          `📞 Tel: ${user.contact || "yoq"}`
         );
       }
     }
@@ -503,7 +510,8 @@ async onText(@Ctx() ctx: Context) {
   switch (regState.step) {
     case "firstname":
       if (!isValidName.test(text)) {
-        return ctx.reply("❗ Ism faqat harflardan iborat va kamida 2 ta harf bo'lishi kerak.");
+         ctx.reply("❗ Ism faqat harflardan iborat va kamida 2 ta harf bo'lishi kerak.");
+         return
       }
       regState.data.firstname = text;
       regState.step = "lastname";
@@ -512,7 +520,8 @@ async onText(@Ctx() ctx: Context) {
 
     case "lastname":
       if (!isValidName.test(text)) {
-        return ctx.reply("❗ Familiya faqat harflardan iborat va kamida 2 ta harf bo'lishi kerak.");
+         ctx.reply("❗ Familiya faqat harflardan iborat va kamida 2 ta harf bo'lishi kerak.");
+         return
       }
       regState.data.lastname = text;
       regState.step = "region";
@@ -535,7 +544,8 @@ async onText(@Ctx() ctx: Context) {
 
     case "region":
       if (!isValidName.test(text)) {
-        return ctx.reply("❗ Viloyat nomi noto‘g‘ri. Faqat harflardan iborat bo‘lishi kerak.");
+         ctx.reply("❗ Viloyat nomi notogri. Faqat harflardan iborat bolishi kerak.");
+         return
       }
       regState.data.region = text;
       regState.step = "age";
@@ -545,7 +555,8 @@ async onText(@Ctx() ctx: Context) {
     case "age":
       const age = parseInt(text);
       if (isNaN(age) || age < 10 || age > 100) {
-        return ctx.reply("❗ Iltimos, yoshingizni 10 dan 100 gacha bo‘lgan raqamda yozing:");
+         ctx.reply("❗ Iltimos, yoshingizni 10 dan 100 gacha bolgan raqamda yozing:");
+         return
       }
       regState.data.age = age;
       regState.step = "contact";
@@ -576,18 +587,21 @@ async onText(@Ctx() ctx: Context) {
       const state = UserState.get(userId);
 
       if (!state || state.step !== "contact") {
-        return await ctx.reply("/start ni bosing yoki ma'lumotlarni to'ldiring.");
+         await ctx.reply("/start ni bosing yoki ma'lumotlarni to'ldiring.");
+         return
       }
 
       if (!ctx.message || !("contact" in ctx.message)) {
-        return await ctx.reply("Kontakt noto'g'ri yuborildi.");
+         await ctx.reply("Kontakt noto'g'ri yuborildi.");
+         return
       }
 
       const contact = ctx.message.contact.phone_number;
       const oldUser = await this.prisma.user.findFirst({ where: { telegram_id: userId } });
 
       if (oldUser) {
-        return await ctx.reply("Siz allaqachon ro'yxatdan o'tgansiz. /delete ni bosing");
+         await ctx.reply("Siz allaqachon ro'yxatdan o'tgansiz. /delete ni bosing");
+         return
       }
 
       await this.prisma.user.create({
@@ -602,7 +616,8 @@ async onText(@Ctx() ctx: Context) {
       });
 
       UserState.delete(userId);
-      await ctx.reply(`\u2705 Ro'yxatdan o'tish muvaffaqiyatli yakunlandi.\nSertifikat olish uchun /sertificate ni bosing`, keyboard.main);
+      await ctx.reply(`\u2705 Ro'yxatdan o'tish muvaffaqiyatli yakunlandi.\nSertifikat olish uchun 📄 Sertifikat olish ni bosing`, keyboard.main);
+      return
     } catch (err) {
       console.error(err);
       await ctx.reply("\u274C Kontaktni saqlashda xatolik yuz berdi.");

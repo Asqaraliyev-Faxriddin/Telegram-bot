@@ -3,10 +3,10 @@ import { Markup } from 'telegraf'
 export const keyboard = {
   main: Markup.keyboard([
 
-    ["/start","✅ Test yuborish"],
-    [ "/my_info", "Yordam"],
+    ["/start","✅ Test yuborish",],
+    [ "malumotlarim", "Yordam"],
     ["/bot_information","📄 Sertifikat olish"],
-    ["/delete"],
+    ["/delete",'🧪 Testni boshlash'],
 
 
 

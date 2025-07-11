@@ -35,10 +35,7 @@ export class BotService implements OnModuleInit {
 
             },
 
-            {
-                command:"sertificate",description:"o'zingizni sertifikatingizni olasiz\n🟥eslatma:Avval ro'yxatddan o'tgan bo'lishingiz kerak.\nro'yxatdan o'tish uchun shuni bosing:/start "
-
-            },
+       
             
 
         ])

@@ -169,7 +169,7 @@ export class RegistrationService implements OnModuleInit {
     const correctAnswers = userAnswers?.answer_count || 0;
   
     if (correctAnswers < 6) {
-      await ctx.reply(`📉 Siz hozircha ${correctAnswers} ta testdan to'g'ri javob berdingiz. Kamida 6 ta kerak.\nTestni takroran boshlash uchun: /start_test`);
+      await ctx.reply(`📉 Siz hozircha ${correctAnswers} ta testdan to'g'ri javob berdingiz. Kamida 6 ta kerak.\nTestni takroran boshlash uchun: 🧪 Testni boshlash`);
       return;
     }
   
