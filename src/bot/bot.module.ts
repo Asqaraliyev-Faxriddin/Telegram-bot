@@ -5,13 +5,14 @@ import { TelegrafModule } from 'nestjs-telegraf';
 import { UpdateBot } from './bot.update';
 import { RegistrationModule } from './registration/registration.module';
 import { BotService } from './bot.service';
+import { AdminUtils } from './bot.actions';
 
 @Module({
 
     imports:[TelegrafModule.forRoot({
         token:process.env.Bot_Token as string
     }), RegistrationModule],
-    providers:[UpdateBot,BotService]
+    providers:[UpdateBot,BotService,AdminUtils]
 
 })
 

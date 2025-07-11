@@ -24,7 +24,7 @@ model User {
   sertificat_count Int @default(0)
   sertificatian_Date DateTime @default(now())
   role String @default("USER")
-   
+  isActive Boolean @default(true)
 
   @@map("users")
 }
@@ -38,9 +38,14 @@ model Questions{
   C String
   D String
   Answer_Key String
-  Answer_count Int
-  telegram_id BigInt
+
 
 @@map("questions")
 
+}
+
+model Answers{
+  id Int @id @default(autoincrement())
+  telegram_id BigInt
+  answer_count Int
 }

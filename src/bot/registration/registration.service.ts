@@ -1,167 +1,255 @@
 // src/modules/bot/registration/registration.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { addTextToImage } from 'certificates/sertificat';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { Context, Telegraf } from 'telegraf';
-import * as path from "path"
+import * as path from 'path';
 import { InjectBot } from 'nestjs-telegraf';
-import { Update } from 'telegraf/typings/core/types/typegram';
+
+export const userTestStates = new Map<number, {
+  index: number,
+  correct: number,
+  questions: any[]
+}>();
 
 @Injectable()
-export class RegistrationService {
-  constructor(private readonly prisma: PrismaService,@InjectBot() private readonly bot:Telegraf<Context>) {}
+export class RegistrationService implements OnModuleInit {
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectBot() private readonly bot: Telegraf<Context>
+  ) {}
+
+  async onModuleInit() {
+    this.bot.on('text', async (ctx) => {
+      const userId = ctx.from?.id;
+      if (!userId) return;
+  
+      const state = userTestStates.get(userId);
+      if (!state) return;
+  
+      const text = (ctx.message as any).text?.trim().toUpperCase();
+      // @ts-ignore
+      if (!['A', 'B', 'C', 'D'].includes(text)) {
+        await ctx.reply("❗ Faqat A, B, C yoki D dan birini tanlang.");
+        return;
+      }
+  
+      const currentQuestion = state.questions[state.index];
+      const isCorrect = text === currentQuestion.Answer_Key;
+  
+      if (isCorrect) state.correct++;
+  
+      // Savol o‘zgartirilmaydi, Questions jadvalidan update olib tashlandi
+  
+      state.index++;
+  
+      // Test tugaganda
+      if (state.index >= state.questions.length) {
+        userTestStates.delete(userId);
+  
+        // Answers jadvalidan bor-yo‘qligini tekshiramiz
+        const existingAnswer = await this.prisma.answers.findFirst({
+          where: { telegram_id: BigInt(userId) }
+        });
+  
+        if (existingAnswer) {
+          // Yangilaymiz
+          await this.prisma.answers.update({
+            where: { id: existingAnswer.id },
+            data: { answer_count: state.correct }
+          });
+        } else {
+          // Yangi javob yozamiz
+          await this.prisma.answers.create({
+            data: {
+              telegram_id: BigInt(userId),
+              answer_count: state.correct
+            }
+          });
+        }
+  
+        // Natijani yuborish
+        await ctx.reply(`✅ Test tugadi. Siz ${state.correct} ta to'g'ri javob berdingiz.`);
+        if (state.correct >= 6) {
+          await ctx.reply("🎉 Sertifikat olish uchun /sertificate ni bosing.");
+        } else {
+          await ctx.reply("❌ Afsuski, siz 6 ta to'g'ri javob bera olmadingiz.");
+        }
+      } else {
+        const next = state.questions[state.index];
+        await ctx.reply(
+          `📘 ${next.title}\n\nA) ${next.A}\nB) ${next.B}\nC) ${next.C}\nD) ${next.D}`,
+          {
+            reply_markup: {
+              keyboard: [['A', 'B'], ['C', 'D']],
+              one_time_keyboard: true,
+              resize_keyboard: true,
+            },
+          }
+        );
+      }
+    });
+  }
+  
 
   async startTest(ctx: Context) {
     const userId = ctx.from?.id;
     if (!userId) return;
   
+    // Avval ro'yxatdan o'tganini tekshiramiz
+    const user = await this.prisma.user.findFirst({
+      where: { telegram_id: userId },
+    });
+  
+    if (!user) {
+      await ctx.reply("❌ Siz hali ro'yxatdan o'tmagansiz. Iltimos /start ni bosing.");
+      return;
+    }
+  
+    // Avval testga yozilgan bo'lsa, qayta yozilishiga yo'l qo'ymaymiz
+    if (userTestStates.has(userId)) {
+      await ctx.reply("❗ Siz allaqachon testni boshlagansiz. Javobni A, B, C yoki D shaklida yuboring.");
+      return;
+    }
+  
+    // Savollarni olib kelamiz
     const questions = await this.prisma.questions.findMany({
-      where: { telegram_id: 0 },
+      
       orderBy: { id: 'asc' },
       take: 10,
     });
   
     if (!questions.length) {
-      return ctx.reply("❌ Hozircha testlar mavjud emas.");
+      await ctx.reply("❌ Hozircha testlar mavjud emas.");
+      return;
     }
   
-    let correct = 0;
+    // Test holatini saqlaymiz
+    userTestStates.set(userId, {
+      questions,
+      index: 0,
+      correct: 0,
+    });
   
-    for (const question of questions) {
-      await ctx.reply(
-        `📘 ${question.title}\n\nA) ${question.A}\nB) ${question.B}\nC) ${question.C}\nD) ${question.D}`,
-        {
-          reply_markup: {
-            keyboard: [['A', 'B'], ['C', 'D']],
-            one_time_keyboard: true,
-            resize_keyboard: true,
-          },
-        }
-      );
+    const first = questions[0];
   
-      const answer: string | null = await new Promise((resolve) => {
-        const handler = async (msgCtx: Context) => {
-          // Faqat shu userdan bo‘lsa va text bo‘lsa
-          if (
-            msgCtx.from?.id !== userId ||
-            !msgCtx.message ||
-            typeof (msgCtx.message as any).text !== 'string'
-          ) return;
-  
-          const text = (msgCtx.message as any).text.trim().toUpperCase();
-  
-          // @ts-ignore
-          if (['A', 'B', 'C', 'D'].includes(text)) {
-            (this.bot as any).off('text', handler); // faqat 1 marta ishlasin
-            resolve(text);
-          } else {
-            await msgCtx.reply("❗ Faqat A, B, C yoki D dan birini tanlang.");
-          }
-        };
-  
-        (this.bot as any).on('text', handler);
-      });
-  
-      const isCorrect = answer === question.Answer_Key;
-      if (isCorrect) correct++;
-  
-      await this.prisma.questions.update({
-        where: { id: question.id },
-        data: {
-          Answer_count: isCorrect ? question.Answer_count + 1 : question.Answer_count,
-          telegram_id: isCorrect ? userId : question.telegram_id,
+    await ctx.reply(
+      `📘 ${first.title}\n\nA) ${first.A}\nB) ${first.B}\nC) ${first.C}\nD) ${first.D}`,
+      {
+        reply_markup: {
+          keyboard: [['A', 'B'], ['C', 'D']],
+          resize_keyboard: true,
+          one_time_keyboard: true,
         },
-      });
-    }
-  
-    await ctx.reply(`✅ Test tugadi. Siz ${correct} ta to'g'ri javob berdingiz.`);
-  
-    if (correct >= 6) {
-      await ctx.reply("🎉 Sertifikat olish uchun /sertificate ni bosing.");
-    } else {
-      await ctx.reply("❌ Afsuski, siz 6 ta to'g'ri javob bera olmadingiz.");
-    }
+      }
+    );
   }
   
-  
-  
-  
 
-  async handleCertificatess(ctx: Context) {
+  async handleCertificates(ctx: Context) {
     const userId = ctx.from?.id;
-    if (!userId) return;
-
-    const correctCount = await this.prisma.questions.count({
-      where: { telegram_id: userId },
-    });
-
-    if (correctCount < 6) {
-       ctx.reply("❌ Sertifikat olish uchun kamida 6 ta savolga to'g'ri javob berishingiz kerak.");
-       return
+    if (!userId) {
+      await ctx.reply("❌ Foydalanuvchi aniqlanmadi.");
+      return;
     }
-
-    const user = await this.prisma.user.findFirst({ where: { telegram_id: userId } });
-    if (!user)return  ctx.reply("❌ Siz ro'yxatdan o'tmagansiz.");
-
+  
+    const user = await this.prisma.user.findFirst({
+      where: { telegram_id: BigInt(userId) }
+    });
+  
+    if (!user) {
+      await ctx.reply("❌ Siz hali ro'yxatdan o'tmagansiz.");
+      return;
+    }
+  
+    const userAnswers = await this.prisma.answers.findFirst({
+      where: { telegram_id: BigInt(userId) }
+    });
+  
+    const correctAnswers = userAnswers?.answer_count || 0;
+  
+    if (correctAnswers < 6) {
+      await ctx.reply(`📉 Siz hozircha ${correctAnswers} ta testdan to'g'ri javob berdingiz. Kamida 6 ta kerak.\nTestni takroran boshlash uchun: /start_test`);
+      return;
+    }
+  
+    const now = new Date();
+    const lastTime = user.sertificatian_Date;
+    const twoHours = 2 * 60 * 60 * 1000;
+    const timeDiff = lastTime ? now.getTime() - new Date(lastTime).getTime() : Infinity;
+  
+    if (user.sertificat_count >= 3 && timeDiff < twoHours) {
+      await ctx.reply("❌ 3 martadan ko'p urindingiz. 2 soatdan keyin yana urinib ko'ring.");
+      return;
+    }
+  
+    const updatedCount = user.sertificat_count >= 3 ? 1 : user.sertificat_count + 1;
+  
     await addTextToImage(user.firstname, user.lastname);
     const filePath = path.join(process.cwd(), 'templates', 'top.jpeg');
-
-    return ctx.replyWithPhoto({ source: filePath }, { caption: "📄 Sertifikatingiz tayyor!" });
+  
+    await this.prisma.user.update({
+      where: { telegram_id: BigInt(userId) },
+      data: {
+        sertificat_count: updatedCount,
+        sertificatian_Date: new Date(),
+      },
+    });
+  
+    await ctx.replyWithPhoto({ source: filePath }, {
+      caption: "📄 Sertifikatingiz tayyor!"
+    });
   }
-
-
-
-
-
-
-
-
-
-
+  
 
   async deleteSelf(ctx: Context) {
     try {
       const userId = ctx.from?.id;
-      if (!userId) return ctx.reply("❌ Foydalanuvchi aniqlanmadi.");
-
+      if (!userId) return await ctx.reply("❌ Foydalanuvchi aniqlanmadi.");
+  
       const user = await this.prisma.user.findFirst({
-        where: { telegram_id: userId },
+        where: { telegram_id: BigInt(userId) }
       });
-
+  
       if (!user) {
-         ctx.reply(`❌ Siz hali ro'yxatdan o'tmagansiz. /start ni bosing.`);  return
+        return await ctx.reply("❌ Siz hali ro'yxatdan o'tmagansiz. /start ni bosing.");
       }
-
-      await this.prisma.user.delete({ where: { telegram_id: userId } });
-
-      return ctx.reply(
-        `✅ Ma'lumotlaringiz o'chirildi. Qaytadan ro'yxatdan o'tish uchun /start ni bosing.`,
-      );
+  
+      await this.prisma.answers.deleteMany({
+        where: { telegram_id: BigInt(userId) }
+      });
+  
+      await this.prisma.user.delete({
+        where: { telegram_id: BigInt(userId) }
+      });
+  
+      return ctx.reply("✅ Ma'lumotlaringiz va test javoblaringiz o'chirildi. Qaytadan ro'yxatdan o'tish uchun /start ni bosing.");
     } catch (error) {
       console.error("deleteSelf error:", error);
-       ctx.reply("❌ Xatolik yuz berdi, qaytadan urinib ko'ring.");
-       return
+      return ctx.reply("❌ Xatolik yuz berdi, qaytadan urinib ko'ring.");
     }
   }
+  
 
   async deleteById(ctx: Context, targetId: number) {
     try {
       const target = await this.prisma.user.findFirst({
-        where: { telegram_id: targetId },
+        where: { telegram_id: BigInt(targetId) }
       });
-
-      if (!target) {
-        return ctx.reply(`🛑 Bunday foydalanuvchi topilmadi.`);
-      }
-
-      await this.prisma.user.delete({ where: { telegram_id: targetId } });
-
+  
+      if (!target) return ctx.reply(`🛑 Bunday foydalanuvchi topilmadi.`);
+  
+      await this.prisma.user.delete({
+        where: { telegram_id: BigInt(targetId) }
+      });
+  
       return ctx.reply(`🗑 Foydalanuvchi ID ${targetId} muvaffaqiyatli o'chirildi.`);
     } catch (error) {
       console.error("deleteById error:", error);
       return ctx.reply("❌ Foydalanuvchini o'chirishda xatolik yuz berdi.");
     }
   }
+  
 
   async searchByName(ctx: Context, search: string) {
     try {
@@ -174,98 +262,49 @@ export class RegistrationService {
         },
       });
 
-      if (users.length === 0) {
-         ctx.reply(`🔍 "${search}" bo'yicha hech narsa topilmadi.`);
-         return
+      if (!users.length) {
+        return ctx.reply(`🔍 \"${search}\" bo'yicha hech narsa topilmadi.`);
       }
 
       for (const user of users) {
-        await ctx.reply(`👤 Foydalanuvchi:
-🧑 Ism: ${user.firstname}
-🔤 Familiya: ${user.lastname}
-🆔 ID: ${user.telegram_id}
-📞 Tel: ${user.contact || "yo'q"}`);
+        await ctx.reply(`👤 Foydalanuvchi:\n🧑 Ism: ${user.firstname}\n🔤 Familiya: ${user.lastname}\n🆔 ID: ${user.telegram_id}\n📞 Tel: ${user.contact || "yo'q"}`);
       }
     } catch (error) {
       console.error("searchByName error:", error);
-       ctx.reply("❌ Qidiruvda xatolik yuz berdi.");
-       return
+      return ctx.reply("❌ Qidiruvda xatolik yuz berdi.");
     }
   }
 
   async AllUsers(ctx: Context): Promise<boolean> {
+    const userId = ctx.from?.id;
+  
+    if (!userId) {
+      await ctx.reply("❗ Foydalanuvchi aniqlanmadi.");
+      return false;
+    }
+  
     try {
-      const userId = ctx.from?.id;
-      if (!userId) return false;
-
-
-      return true; 
+      const status = (await ctx.telegram.getChatMember("@Faxriddin_clever", userId)).status;
+  
+      if (status !== "creator") {
+        await ctx.reply("🛡 Iltimos, admin parolni kiriting:");
+        return true;
+      }
+  
+      const users = await this.prisma.user.findMany();
+  
+      for (const user of users) {
+        await ctx.reply(
+          `👤 Foydalanuvchi:\n🧑 Ism: ${user.firstname}\n🔤 Familiya: ${user.lastname}\n🆔 ID: ${user.telegram_id}\n🔗 Yosh: @${user.age || "yo'q"}\n📞 Tel: ${user.contact || "yo'q"}`
+        );
+      }
+  
+      return false;
     } catch (error) {
       console.error("AllUsers error:", error);
+      await ctx.reply("❌ Foydalanuvchilarni olishda xatolik yuz berdi.");
       return false;
     }
   }
-
-
-
-async handleCertificates(ctx: Context) {
-    const userId = ctx.from?.id;
-    const user = await this.prisma.user.findFirst({ where: { telegram_id: userId } });
-  
-    if (!user) { ctx.reply("❌ Siz hali ro'yxatdan o'tmagansiz.");
-     return }
-  
-   
-    const correctAnswers = await this.prisma.questions.count({
-      where: {
-        telegram_id: userId,
-        Answer_count: 1, 
-      }
-    });
-  
-    if (correctAnswers < 6) {
-       ctx.reply(`📉 Siz hozircha ${correctAnswers} ta testdan to'g'ri javob berdingiz. Kamida 6 ta kerak.`);
-       return
-    }
-  
-    const now = new Date();
-    const lastTime = user.sertificatian_Date;
-    const twoHours = 2 * 60 * 60 * 1000;
-  
-    if (user.sertificat_count >= 3 && now.getTime() - new Date(lastTime).getTime() < twoHours) {
-       ctx.reply("❌ 3 martadan ko'p urindingiz. 2 soatdan keyin yana urinib ko'ring.");
-       return
-    }
-  
-    if (user.sertificat_count >= 3) {
-      user.sertificat_count = 0;
-    }
-  
-    await addTextToImage(user.firstname, user.lastname);
-    const filePath = path.join(process.cwd(), 'templates', 'top.jpeg');
-  
-    await this.prisma.user.update({
-      where: { telegram_id: userId },
-      data: {
-        sertificat_count: user.sertificat_count + 1,
-        sertificatian_Date: new Date(),
-      },
-    });
-  
-     ctx.replyWithPhoto({ source: filePath }, { caption: "📄 Sertifikatingiz tayyor!" });
-     return
-  }
-
-
-  
-  
   
 }
-
-  
-  
-
-  
-
-  
-

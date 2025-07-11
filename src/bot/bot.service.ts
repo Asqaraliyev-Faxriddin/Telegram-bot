@@ -22,7 +22,7 @@ export class BotService implements OnModuleInit {
             },
 
             {
-                command:"delete",description:"O'zini o'zi o'chirish"
+                command:"delete",description:"O'zingizni o'chirasiz"
 
             },
             {
@@ -39,6 +39,7 @@ export class BotService implements OnModuleInit {
                 command:"sertificate",description:"o'zingizni sertifikatingizni olasiz\n🟥eslatma:Avval ro'yxatddan o'tgan bo'lishingiz kerak.\nro'yxatdan o'tish uchun shuni bosing:/start "
 
             },
+            
 
         ])
     }

@@ -2,254 +2,591 @@ import { Action, Hears, Ctx, On, Start, Update } from "nestjs-telegraf";
 import { PrismaService } from "src/core/prisma/prisma.service";
 import { Context } from "telegraf";
 import { UserState } from "src/common/user.state";
-import { RegistrationService } from "./registration/registration.service";
+import { RegistrationService, userTestStates } from "./registration/registration.service";
 import { keyboard } from "./reply.keyboard";
 import * as path from "path";
 import { addTextToImage } from "certificates/sertificat";
+import { AdminUtils } from "./bot.actions"; // ✅ to'g'ri import
 
 @Update()
 export class UpdateBot {
+  private readonly newadminUtils: AdminUtils;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly registrationService: RegistrationService
-  ) {}
+  ) {
+    this.newadminUtils = new AdminUtils(this.prisma);
+  }
 
   private awaitingPassword = new Map<number, boolean>();
-  private tempDeleteTarget = new Map<number, number>();
+  private tempDeleteTarget = new Map<number, boolean>();
   private awaitingAdminDelete = new Map<number, boolean>();
   private awaitingSearch = new Map<number, boolean>();
+  private awaitingBlock = new Map<number, string>();
+  private awaitingAddAdmin = new Map<number, boolean>();
 
-  @Hears("/delete")
-  async deleteUser(@Ctx() ctx: Context) {
-    try {
-      return await this.registrationService.deleteSelf(ctx);
-    } catch (err) {
-      console.error(err);
-       ctx.reply("❌ O'chirishda xatolik yuz berdi.");
-       return
-    }
-  }
+  @Hears('📊 Statistika')
+async handleStats(@Ctx() ctx: Context) {
+  const userId = ctx.from?.id;
+  if (!userId) return;
 
-  @Hears("/admin_delete")
-  async askPasswordForDelete(@Ctx() ctx: Context) {
-    this.awaitingAdminDelete.set(ctx.from!.id, true);
-     ctx.reply("🛡 Admin parolni kiriting:");
-     return
-  }
+  // Faqat adminlar kirishi uchun
+  const user = await this.prisma.user.findFirst({ where: { telegram_id: BigInt(userId) } });
+  const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
 
-  @Hears("/search")
-  async searchStart(@Ctx() ctx: Context) {
-    this.awaitingSearch.set(ctx.from!.id, true);
-     ctx.reply("🔍 Qidiruv uchun ism yozing:");
-     return
-  }
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || status === 'creator';
+  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yo‘q.');
 
-  @Hears("/sertificate")
-  async handleCertificates(@Ctx() ctx: Context) {
-    try {
-      return await this.registrationService.handleCertificates(ctx);
-       
-    } catch (err) {
-      console.error(err);
-       ctx.reply("❌ Sertifikat olishda kutilmagan xatolik yuz berdi.");
-       return
-    }
-  }
+  const totalUsers = await this.prisma.user.count();
+  const activeUsers = await this.prisma.user.count({ where: { isActive: true } });
+  const certificateUsers = await this.prisma.user.count({ where: { sertificat_count: { gt: 0 } } });
+  const testers = await this.prisma.answers.count();
+  const superAdmins = await this.prisma.user.count({ where: { role: 'SUPERADMIN' } });
+  const admins = await this.prisma.user.count({ where: { role: 'ADMIN' } });
 
-  @Hears("/start_test")
-  async startTestHandler(@Ctx() ctx: Context) {
-    return this.registrationService.startTest(ctx);
-  }
-
-
-  @Hears("/users")
-  async allUsers(@Ctx() ctx: Context) {
-    try {
-      const needsPassword = await this.registrationService.AllUsers(ctx);
-      if (needsPassword) {
-        this.awaitingPassword.set(ctx.from!.id, true);
-      }
-    } catch (err) {
-      console.error(err);
-       ctx.reply("❌ Userlarni olishda xatolik yuz berdi.");
-       return
-    }
-  }
-
-
-  @Hears('/help')
-async helpCommand(@Ctx() ctx: Context) {
   await ctx.reply(
-    `🆘 <b>Yordam menyusi</b>\n\n` +
-    `Quyidagi buyruqlar orqali botdan foydalanishingiz mumkin:\n\n` +
-
-    `✅ <b>/start</b> - Ro'yxatdan o'tish jarayonini boshlaydi\n` +
-    
-    
-    `📘 <b>/start_test</b> - Test savollarini boshlaydi\n` +
-    
-    
-    `📄 <b>/sertificate</b> - Sertifikatni yuklab olish\n` +
-    
-    
-    `🗑 <b>/delete</b> - O'z profilingizni o'chirish\n` +
-    
-    ` <b>/help</b> - Yordam menyusini ko'rsatadi`,
-    {
-      parse_mode: 'HTML',
-      reply_markup: {
-        remove_keyboard: true
-      }
-    }
+    `📊 <b>Statistika:</b>\n\n` +
+    `👥 Jami foydalanuvchilar: <b>${totalUsers}</b>\n` +
+    `✅ Aktiv foydalanuvchilar: <b>${activeUsers}</b>\n` +
+    `🎓 Sertifikat olganlar: <b>${certificateUsers}</b>\n` +
+    `🧪 Testni bajarganlar: <b>${testers}</b>\n` +
+    `👑 SUPERADMINlar: <b>${superAdmins}</b>\n` +
+    `🛡 ADMINlar: <b>${admins}</b>`,
+    { parse_mode: 'HTML' }
   );
 }
 
 
-  @Start()
-async onStart(@Ctx() ctx: Context) {
-  const userId = ctx.from!.id;
+@Hears('✅ Test yuborish')
+async handleSendTest(@Ctx() ctx: Context) {
+  const userId = ctx.from?.id;
+  if (!userId) return;
 
-  const user = await this.prisma.user.findFirst({ where: { telegram_id: userId } });
+  const user = await this.prisma.user.findFirst({ where: { telegram_id: BigInt(userId) } });
+  const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || status === 'creator';
+  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yo‘q.');
 
-  if (user) {
-     ctx.reply("✅ Siz allaqachon ro'yxatdan o'tgansiz. /start_test orqali testni boshlang.");
-     return
-  }
-
-  UserState.set(userId, {
-    step: "firstname",
-    data: {},
-  });
-
-   ctx.reply("👋 Assalomu alaykum! Ismingizni kiriting:");
-   return
+  await ctx.reply('📝 Test yuborish funksiyasi hali to‘liq ishlanmadi. Tez orada faollashtiriladi.');
+  // Optional: bu yerga test qo‘shish vaqti kelganda logika kiritiladi
 }
 
-  
+@Hears('🧪 Testni boshlash')
+async handleStartTestButton(@Ctx() ctx: Context) {
+  return this.registrationService.startTest(ctx);
+}
 
-  @On("text")
-  async onText(@Ctx() ctx: Context) {
+@Hears("➕ Admin qo'shish")
+async handleAddAdminStart(@Ctx() ctx: Context) {
+  if (!(await this.newadminUtils.restrictToSuperAdminOnly(ctx))) return;
+
+  this.awaitingAddAdmin.set(ctx.from!.id, true);
+  await ctx.reply("👤 Admin qilish uchun foydalanuvchining Telegram ID sini yuboring:");
+}
+
+  @Hears("/delete")
+  async deleteUser(@Ctx() ctx: Context) {
+    if (await this.newadminUtils.isUserBlocked(ctx)) return;
     try {
-      const userId = ctx.from!.id;
-      if (!ctx.message || !('text' in ctx.message)) return ctx.reply("Faqat matn yuboring.");
-      const text = ctx.message.text;
-
-      if (this.awaitingPassword.get(userId)) {
-        this.awaitingPassword.delete(userId);
-        if (text === '11201111') {
-          const users = await this.prisma.user.findMany();
-          for (const user of users) {
-            await ctx.reply(`👤 User:\nIsm: ${user.firstname}\nFamiliya: ${user.lastname}\nYosh: ${user.age}\nViloyat: ${user.region}\nTelefon: ${user.contact}`);
-          }
-        } else {
-           ctx.reply("❌ Parol noto'g'ri!");
-           return
-        }
-        return;
-      }
-
-      if (this.awaitingAdminDelete.get(userId)) {
-        this.awaitingAdminDelete.delete(userId);
-        if (text === '11201111') {
-          this.tempDeleteTarget.set(userId, 1);
-           ctx.reply("✅ Parol to'g'ri. Endi o'chirmoqchi bo'lgan userning ID sini yuboring:");
-           return
-        } else {
-           ctx.reply("❌ Parol noto'g'ri.");
-           return
-        }
-      }
-
-      if (this.tempDeleteTarget.has(userId)) {
-        const targetId = parseInt(text);
-        if (isNaN(targetId)) return ctx.reply("❗️Iltimos, to'g'ri ID kiriting.");
-        this.tempDeleteTarget.delete(userId);
-        return this.registrationService.deleteById(ctx, targetId);
-      }
-
-      if (this.awaitingSearch.get(userId)) {
-        this.awaitingSearch.delete(userId);
-         this.registrationService.searchByName(ctx, text);
-         return
-      }
-
-      const state = UserState.get(userId);
-      if (!state) { ctx.reply("/start ni bosing");
-       return }
-
-      switch (state.step) {
-        case "firstname":
-          state.data.firstname = text;
-          state.step = "lastname";
-           ctx.reply("Familiyangizni kiriting:");
-           return
-
-        case "lastname":
-          state.data.lastname = text;
-          state.step = "region";
-           ctx.reply("Viloyatingizni tanlang:", {
-            reply_markup: {
-              keyboard: [
-                ["Toshkent", "Samarqand"],
-                ["Farg'ona", "Andijon"],
-                ["Surxondaryo", "Jizzax"],
-                ["Buxoro", "Namangan"],
-                ["Xorazm", "Sirdaryo"],
-                ["Qashqadaryo", "Navoiy"],
-                ["Qoraqalpog'iston"]
-              ],
-              resize_keyboard: true,
-              one_time_keyboard: true
-            }
-          });
-          return
-        case "region":
-          state.data.region = text;
-          state.step = "age";
-           ctx.reply("Yoshingizni kiriting:");
-           return
-        case "age":
-          const age = parseInt(text);
-          if (isNaN(age)) return ctx.reply("Yoshingizni raqam bilan kiriting:");
-          state.data.age = age;
-          state.step = "contact";
-           ctx.reply("Iltimos kontakt yuboring", {
-            reply_markup: {
-              keyboard: [
-                [{ text: "Kontakt yuborish", request_contact: true }]
-              ],
-              resize_keyboard: true,
-              one_time_keyboard: true
-            }
-          });
-          return
-        default:
-           ctx.reply("Iltimos kontakt yuboring.");
-
-           return
-      }
+      await this.registrationService.deleteSelf(ctx);
     } catch (err) {
       console.error(err);
-       ctx.reply("❌ Matn qabul qilishda xatolik yuz berdi.");
-       return
+      await ctx.reply("❌ O'chirishda xatolik yuz berdi.");
     }
   }
 
+  @Hears("💖Admin o'chirish")
+  async askPasswordForDelete(@Ctx() ctx: Context) {
+    if (!(await this.newadminUtils.restrictToAdminsOnly(ctx))) return;``
+    this.awaitingAdminDelete.set(ctx.from!.id, true);
+    await ctx.reply("🛡 Admin parolni kiriting:");
+  }
+
+  @Hears("/search")
+  async searchStart(@Ctx() ctx: Context) {
+    const userId = ctx.from!.id;
+  
+    const isAdmin = await this.newadminUtils.isAdmin(userId, ctx);
+    if (!isAdmin) {
+      await ctx.reply("❌ Sizda bu buyruqni bajarish uchun ruxsat yo'q.");
+      return;
+    }
+  
+    this.awaitingSearch.set(userId, true);
+    await ctx.reply("🔍 Qidiruv uchun ism yozing:");
+  }
+  
+  @Hears("👥 Foydalanuvchilar")
+  async allUsers(@Ctx() ctx: Context) {
+    if (!(await this.newadminUtils.isAdmin(ctx.from!.id,ctx))) return;
+    try {
+      const needsPassword = await this.registrationService.AllUsers(ctx);
+      if (needsPassword === true) {
+        this.awaitingPassword.set(ctx.from!.id, true);
+      }
+    } catch (err) {
+      console.error(err);
+      await ctx.reply("❌ Userlarni olishda xatolik yuz berdi.");
+    }
+  }
+
+  @Hears("🚫 Bloklash")
+  async handleBlockCommand(@Ctx() ctx: Context) {
+    if (!(await this.newadminUtils.restrictToAdminsOnly(ctx))) return;
+  
+    const userId = ctx.from!.id;
+    this.awaitingBlock.set(userId, "block"); 
+  
+    await ctx.reply("🔢 Bloklamoqchi bolgan foydalanuvchining Telegram ID sini yuboring:");
+  }
+
+
+  @Hears("🚫 Blokldan chiqarish")
+  async handleunBlockCommand(@Ctx() ctx: Context) {
+    if (!(await this.newadminUtils.restrictToAdminsOnly(ctx))) return;
+  
+    const userId = ctx.from!.id;
+    this.awaitingBlock.set(userId, "unblock");
+  
+    await ctx.reply("🔢 Bloklamoqchi bo'lgan foydalanuvchining Telegram ID sini yuboring:");
+  }
+
+
+  @Hears("📄 Sertifikat olish")
+  async handleCertificates(@Ctx() ctx: Context) {
+    if (await this.newadminUtils.isUserBlocked(ctx)) return;
+    try {
+      return await this.registrationService.handleCertificates(ctx);
+    } catch (err) {
+      console.error(err);
+      await ctx.reply("❌ Sertifikat olishda kutilmagan xatolik yuz berdi.");
+    }
+  }
+
+
+
+
+  @Hears("🧪 Testni boshlash")
+  async startTestHandler(@Ctx() ctx: Context) {
+    console.log("Ss");
+    
+    if (await this.newadminUtils.isUserBlocked(ctx)) return;
+    return this.registrationService.startTest(ctx);
+  }
+
+  
+
+  @Hears("malumotlarim")
+  async myInfo(@Ctx() ctx: Context) {
+    if (await this.newadminUtils.isUserBlocked(ctx)) return;
+    try {
+      const bot_id = ctx.from!.id;
+      const user = await this.prisma.user.findFirst({ where: { telegram_id: bot_id } });
+      if (!user) {
+        await ctx.reply("Siz hali ro'yxatdan o'tmadingiz.");
+        return;
+      }
+      await ctx.reply(
+        `👤 Siz haqingizdagi ma'lumotlar:\n\n` +
+        `🙋 Ism: ${user.firstname || "Noma'lum"}\n` +
+         ` 🙂Yosh:${user.age || 25}\n       `+
+        `🌤 Familiya: ${user.lastname || "Noma'lum"}\n` +
+        `🌍 Viloyat: ${user.region || "Noma'lum"}\n` +
+        `📞 Telefon: ${user.contact || "Ko'rsatilmagan"}`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      console.error(err);
+      await ctx.reply("❌ Ma'lumotlarni olishda xatolik yuz berdi.");
+    }
+  }
+
+  @Hears("/bot_information")
+  async botInfo(@Ctx() ctx: Context) {
+    if (await this.newadminUtils.isUserBlocked(ctx)) return;
+    try {
+      const botInfo = await ctx.telegram.getMe();
+      await ctx.replyWithMarkdown(
+        `🤖 *Bot haqida ma'lumot:*\n\n` +
+        `👤 *Nomi:* ${botInfo.first_name}\n` +
+        `📄 *Username:* @${botInfo.username}\n` +
+        `✅ *Botmi:* ${botInfo.is_bot ? 'Ha' : 'Yoq'}\n` +
+        `👨‍💻 *Yaratgan:* *@Asqaraliyev_Faxriddin*`
+      );
+    } catch (err) {
+      console.error(err);
+      await ctx.reply("❌ Bot ma'lumotlarini olishda xatolik yuz berdi.");
+    }
+  }
+
+  @Hears("Yordam")
+  async helpCommand(@Ctx() ctx: Context) {
+    if (await this.newadminUtils.isUserBlocked(ctx)) return;
+    await ctx.reply(
+      `🗂 <b>Yordam menyusi</b>\n\n` +
+      `Quyidagi buyruqlar orqali botdan foydalanishingiz mumkin:\n\n` +
+      `✅ <b>/start</b> - Ro'yxatdan o'tish\n` +
+      `📘 <b>/start_test</b> - Testni boshlash\n` +
+      `📄 <b>/sertificate</b> - Sertifikatni yuklab olish\n` +
+      `🗑 <b>/delete</b> - Profilni o'chirish\n` +
+      `<b>/help</b> - Yordam menyusi`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: { remove_keyboard: true }
+      }
+    );
+  }
+
+  @Start()
+  async onStart(@Ctx() ctx: Context) {
+    const userId = ctx.from?.id;
+    if (!userId) return ctx.reply("❗ Foydalanuvchi aniqlanmadi.");
+  
+    const text = ("text" in ctx.message!) ? ctx.message.text.trim() : "";
+  
+    // ➕ Admin qo‘shish jarayoni
+    if (this.awaitingAddAdmin.get(userId)) {
+      this.awaitingAddAdmin.delete(userId);
+  
+      const telegramId = parseInt(text);
+      if (isNaN(telegramId)) return ctx.reply("❗ Telegram ID faqat raqam bo'lishi kerak.");
+  
+      const user = await this.prisma.user.findUnique({ where: { telegram_id: telegramId } });
+      if (!user) return ctx.reply("❌ Bunday foydalanuvchi topilmadi.");
+      if (user.role === 'ADMIN' || user.role === 'SUPERADMIN') {
+        return ctx.reply("ℹ️ Bu foydalanuvchi allaqachon admin.");
+      }
+  
+      await this.prisma.user.update({
+        where: { telegram_id: telegramId },
+        data: { role: 'ADMIN' },
+      });
+  
+      return ctx.reply(`✅ Foydalanuvchi (${user.firstname}) endi admin.`);
+    }
+  
+    // ✅ KANALGA OBUNA TEKSHIRISH
+    try {
+      const member = await ctx.telegram.getChatMember('@Faxriddin_clever', userId);
+      // @ts-ignore
+      if (["left", "kicked"].includes(member.status)) {
+        return ctx.reply(
+          "🚫 Botdan foydalanish uchun avval kanalga obuna bo‘ling:",
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "📢 Kanalga obuna bo‘lish",
+                    url: "https://t.me/Faxriddin_clever"
+                  }
+                ],
+                [
+                  {
+                    text: "✅ A’zolikni tekshirish",
+                    callback_data: "check_membership"
+                  }
+                ]
+              ]
+            }
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Kanal tekshiruvida xatolik:", error);
+      return ctx.reply("❌ Kanalni tekshirib bo‘lmadi. Keyinroq urinib ko‘ring.");
+    }
+  
+    // ✳️ BAZADAN USERNI QIDIRISH
+    const user = await this.prisma.user.findFirst({ where: { telegram_id: BigInt(userId) } });
+    if (user?.isActive === false) return ctx.reply("🚫 Siz bloklangansiz. Botdan foydalanish mumkin emas.");
+  
+    if (user) {
+      const role = user.role;
+      const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
+  
+      if (role === 'SUPERADMIN' || role === 'ADMIN' || status === 'creator') {
+        return ctx.reply("👮‍♂️ Admin panelga xush kelibsiz!", {
+          reply_markup: {
+            keyboard: [
+              ['📊 Statistika', '👥 Foydalanuvchilar'],
+              ["➕ Admin qo'shish", '🚫 Bloklash'],
+              ['✅ Test yuborish', '🏆 Sertifikatlar'],
+              ['🧪 Testni boshlash',"🚫 Blokldan chiqarish"],
+              ['/bot_information','malumotlarim'],
+              ['/delete',"💖Admin o'chirish"],
+              ['📄 Sertifikat olish','Yordam']
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: false,
+          }
+        });
+      } else {
+        return ctx.reply("👤 User panelga xush kelibsiz!", {
+          reply_markup: {
+            keyboard: [
+              ['🧪 Testni boshlash','malumotlarim'],
+              ['📄 Sertifikat olish','Yordam'],
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: false,
+          }
+        });
+      }
+    }
+  
+    // FOYDALANUVCHI YO‘Q — YANGI RO‘YXAT BOSHLANADI
+    UserState.set(userId, { step: "firstname", data: {} });
+    return ctx.reply("👋 Assalomu alaykum! Ismingizni kiriting:");
+  }
+  
+  
+
+  @On('text')
+async onText(@Ctx() ctx: Context) {
+  const userId = ctx.from?.id;
+
+  if (!userId || !('text' in ctx.message!)) {
+    await ctx.reply("❗ Iltimos matn yuboring.");
+    return;
+  }
+
+  const text = ctx.message.text.trim();
+
+  // 0. Kanalga obuna bo'lganini tekshirish
+  try {
+    const member = await ctx.telegram.getChatMember('@Faxriddin_clever', userId);
+    // @ts-ignore
+    if (["left", "kicked"].includes(member.status)) {
+      await ctx.reply("📛 Botdan foydalanish uchun avval @Faxriddin_clever kanaliga obuna bo‘ling.");
+      return;
+    }
+  } catch (error) {
+    console.error("Kanal tekshiruvida xatolik:", error);
+    await ctx.reply("❌ Kanalni tekshirib bo‘lmadi. Keyinroq urinib ko‘ring.");
+    return;
+  }
+
+  // 1. Block/Unblock
+  const blockAction = this.awaitingBlock.get(userId);
+  if (blockAction === "block" || blockAction === "unblock") {
+    this.awaitingBlock.delete(userId);
+    const telegramId = parseInt(text);
+    if (isNaN(telegramId)) {
+      await ctx.reply("❗ Telegram ID raqam bo'lishi kerak.");
+      return;
+    }
+
+    if (blockAction === "block") {
+      await this.newadminUtils.blockUserByTelegramId(ctx, telegramId);
+    } else {
+      await this.newadminUtils.unblockUserByTelegramId(ctx, telegramId);
+    }
+    return;
+  }
+
+  // 2. Admin delete authorization
+  if (this.awaitingAdminDelete.get(userId)) {
+    this.awaitingAdminDelete.delete(userId);
+    if (text === "11201111") {
+      this.tempDeleteTarget.set(userId, true);
+      await ctx.reply("✅ Admin o'chirish ruxsati berildi. Kimni o'chirmoqchisiz? Ismni yuboring:");
+    } else {
+      await ctx.reply("❌ Noto'g'ri parol.");
+    }
+    return;
+  }
+
+  // 3. Admin delete by name
+  if (this.tempDeleteTarget.get(userId)) {
+    this.tempDeleteTarget.delete(userId);
+    const users = await this.prisma.user.findMany({
+      where: { firstname: { contains: text, mode: 'insensitive' } },
+    });
+
+    if (users.length === 0) {
+      await ctx.reply("🔍 Foydalanuvchi topilmadi.");
+    } else if (users.length === 1) {
+      await this.prisma.user.delete({ where: { id: users[0].id } });
+      await ctx.reply(`✅ ${users[0].firstname} o'chirildi.`);
+    } else {
+      await ctx.reply("❗ Bir nechta foydalanuvchi topildi. Familiyasi bilan to‘liq yuboring.");
+    }
+    return;
+  }
+
+  // 4. Search by firstname
+  if (this.awaitingSearch.get(userId)) {
+    this.awaitingSearch.delete(userId);
+    const users = await this.prisma.user.findMany({
+      where: { firstname: { contains: text, mode: 'insensitive' } },
+    });
+
+    if (users.length === 0) {
+      await ctx.reply("🔎 Foydalanuvchi topilmadi.");
+    } else {
+      for (const user of users) {
+        await ctx.reply(
+          `🆔 ID: ${user.telegram_id}\n` +
+          `👤 Ism: ${user.firstname}\n` +
+          `📍 Viloyat: ${user.region}\n` +
+          `📞 Tel: ${user.contact || "yo‘q"}`
+        );
+      }
+    }
+    return;
+  }
+
+  // 5. Test davomida javoblar
+  const state = userTestStates.get(userId);
+  if (state) {
+    const currentQuestion = state.questions[state.index];
+    const isCorrect = text.toUpperCase() === currentQuestion.Answer_Key;
+
+    if (isCorrect) state.correct++;
+
+    const existing = await this.prisma.answers.findFirst({
+      where: { telegram_id: BigInt(userId) },
+    });
+
+    if (isCorrect) {
+      if (existing) {
+        await this.prisma.answers.update({
+          where: { id: existing.id },
+          data: { answer_count: existing.answer_count + 1 },
+        });
+      } else {
+        await this.prisma.answers.create({
+          data: { telegram_id: BigInt(userId), answer_count: 1 },
+        });
+      }
+    }
+
+    state.index++;
+
+    if (state.index >= state.questions.length) {
+      userTestStates.delete(userId);
+      await ctx.reply(`✅ Test tugadi. Siz ${state.correct} ta to'g'ri javob berdingiz.`);
+      if (state.correct >= 6) {
+        await ctx.reply("🎉 Sertifikat olish uchun /sertificate ni bosing.");
+      } else {
+        await ctx.reply("❌ Afsuski, siz 6 ta to'g'ri javob bera olmadingiz.");
+      }
+    } else {
+      const next = state.questions[state.index];
+      await ctx.reply(
+        `📘 ${next.title}\n\nA) ${next.A}\nB) ${next.B}\nC) ${next.C}\nD) ${next.D}`,
+        {
+          reply_markup: {
+            keyboard: [['A', 'B'], ['C', 'D']],
+            one_time_keyboard: true,
+            resize_keyboard: true,
+          },
+        }
+      );
+    }
+    return;
+  }
+
+  // 6. Ro'yxatdan o'tish
+  const regState = UserState.get(userId);
+  if (!regState) {
+    await ctx.reply("❗ Iltimos /start buyrug'ini bosing.");
+    return;
+  }
+
+  const isValidName = /^[A-Za-zА-Яа-яЁёЎўҒғҚқҲҳ\s'-]{2,}$/u;
+
+  switch (regState.step) {
+    case "firstname":
+      if (!isValidName.test(text)) {
+        return ctx.reply("❗ Ism faqat harflardan iborat va kamida 2 ta harf bo'lishi kerak.");
+      }
+      regState.data.firstname = text;
+      regState.step = "lastname";
+      await ctx.reply("🔤 Familiyangizni kiriting:");
+      break;
+
+    case "lastname":
+      if (!isValidName.test(text)) {
+        return ctx.reply("❗ Familiya faqat harflardan iborat va kamida 2 ta harf bo'lishi kerak.");
+      }
+      regState.data.lastname = text;
+      regState.step = "region";
+      await ctx.reply("📍 Viloyatingizni tanlang:", {
+        reply_markup: {
+          keyboard: [
+            ["Toshkent", "Samarqand"],
+            ["Farg'ona", "Andijon"],
+            ["Surxondaryo", "Jizzax"],
+            ["Buxoro", "Namangan"],
+            ["Xorazm", "Sirdaryo"],
+            ["Qashqadaryo", "Navoiy"],
+            ["Qoraqalpog'iston"]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+      break;
+
+    case "region":
+      if (!isValidName.test(text)) {
+        return ctx.reply("❗ Viloyat nomi noto‘g‘ri. Faqat harflardan iborat bo‘lishi kerak.");
+      }
+      regState.data.region = text;
+      regState.step = "age";
+      await ctx.reply("🎂 Yoshingizni kiriting:");
+      break;
+
+    case "age":
+      const age = parseInt(text);
+      if (isNaN(age) || age < 10 || age > 100) {
+        return ctx.reply("❗ Iltimos, yoshingizni 10 dan 100 gacha bo‘lgan raqamda yozing:");
+      }
+      regState.data.age = age;
+      regState.step = "contact";
+      await ctx.reply("📞 Kontakt yuborishni bosing:", {
+        reply_markup: {
+          keyboard: [[{ text: "📲 Kontakt yuborish", request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+      break;
+
+    default:
+      await ctx.reply("❗ Noma'lum holat. Iltimos /start dan qayta boshlang.");
+      UserState.delete(userId);
+      break;
+  }
+}
+
+
+  
+  
+  
   @On("contact")
   async onContact(@Ctx() ctx: Context) {
     try {
       const userId = ctx.from!.id;
       const state = UserState.get(userId);
 
-      if (!state || state.step !== "contact"){  ctx.reply("/start ni bosing yoki ma'lumotlarni to'ldiring.") 
-        return
-      } 
+      if (!state || state.step !== "contact") {
+        return await ctx.reply("/start ni bosing yoki ma'lumotlarni to'ldiring.");
+      }
 
-      if (!ctx.message || !('contact' in ctx.message)){  ctx.reply("Kontakt noto'g'ri yuborildi."); return }
+      if (!ctx.message || !("contact" in ctx.message)) {
+        return await ctx.reply("Kontakt noto'g'ri yuborildi.");
+      }
+
       const contact = ctx.message.contact.phone_number;
-
       const oldUser = await this.prisma.user.findFirst({ where: { telegram_id: userId } });
-      if (oldUser) return ctx.reply("Siz allaqachon ro'yxatdan o'tgansiz. /delete ni bosing");
+
+      if (oldUser) {
+        return await ctx.reply("Siz allaqachon ro'yxatdan o'tgansiz. /delete ni bosing");
+      }
 
       await this.prisma.user.create({
         data: {
@@ -259,20 +596,35 @@ async onStart(@Ctx() ctx: Context) {
           region: state.data.region || "Nomalum",
           age: state.data.age || 15,
           contact: contact,
-        },
+        }
       });
 
       UserState.delete(userId);
-       ctx.reply(`✅ Ro'yxatdan o'tish muvaffaqiyatli yakunlandi.\nSertifikat olish uchun /sertificate ni bosing`, keyboard.main);
-       return
+      await ctx.reply(`\u2705 Ro'yxatdan o'tish muvaffaqiyatli yakunlandi.\nSertifikat olish uchun /sertificate ni bosing`, keyboard.main);
     } catch (err) {
       console.error(err);
-       ctx.reply("❌ Kontaktni saqlashda xatolik yuz berdi.");
-       return
+      await ctx.reply("\u274C Kontaktni saqlashda xatolik yuz berdi.");
     }
   }
-
- 
-
-  
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
