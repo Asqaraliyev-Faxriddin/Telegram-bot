@@ -323,7 +323,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
           }
         });
       } else {
-        return ctx.reply("👤 User panelga xush kelibsiz!", {
+         ctx.reply("👤 User panelga xush kelibsiz!", {
           reply_markup: {
             keyboard: [
               ['🧪 Testni boshlash','malumotlarim'],
@@ -333,12 +333,14 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
             one_time_keyboard: false,
           }
         });
+        return
       }
     }
   
     // FOYDALANUVCHI YO‘Q — YANGI RO‘YXAT BOSHLANADI
     UserState.set(userId, { step: "firstname", data: {} });
-    return ctx.reply("👋 Assalomu alaykum! Ismingizni kiriting:");
+     ctx.reply("👋 Assalomu alaykum! Ismingizni kiriting:");
+     return
   }
   
   
