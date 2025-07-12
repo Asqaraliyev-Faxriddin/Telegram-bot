@@ -4,7 +4,7 @@ export const keyboard = {
   main: Markup.keyboard([
 
     ["/start","✅ Test yuborish",],
-    [ "malumotlarim", "Yordam"],
+    [ "malumotlarim", "/help"],
     ["/bot_information","📄 Sertifikat olish"],
     ["/delete",'🧪 Testni boshlash'],
 

@@ -64,7 +64,8 @@ async handleSendTest(@Ctx() ctx: Context) {
   const user = await this.prisma.user.findFirst({ where: { telegram_id: BigInt(userId) } });
   const status = (await ctx.telegram.getChatMember('@Faxriddin_clever', userId)).status;
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN' || status === 'creator';
-  if (!isAdmin) return ctx.reply('❌ Sizda ruxsat yoq.');
+  if (!isAdmin)  {ctx.reply('❌ Sizda ruxsat yoq.');
+   return}
 
   await ctx.reply('📝 Test yuborish funksiyasi hali toliq ishlanmadi. Tez orada faollashtiriladi.');
   // Optional: bu yerga test qoshish vaqti kelganda logika kiritiladi
@@ -72,6 +73,7 @@ async handleSendTest(@Ctx() ctx: Context) {
 
 @Hears('🧪 Testni boshlash')
 async handleStartTestButton(@Ctx() ctx: Context) {
+  if (await this.newadminUtils.isUserBlocked(ctx)) return;
   return this.registrationService.startTest(ctx);
 }
 
@@ -167,7 +169,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
 
   @Hears("🧪 Testni boshlash")
   async startTestHandler(@Ctx() ctx: Context) {
-    console.log("Ss");
+    console.log(ctx.message);
     
     if (await this.newadminUtils.isUserBlocked(ctx)) return;
     return this.registrationService.startTest(ctx);
@@ -218,16 +220,16 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
     }
   }
 
-  @Hears("Yordam")
+  @Hears("/help")
   async helpCommand(@Ctx() ctx: Context) {
     if (await this.newadminUtils.isUserBlocked(ctx)) return;
     await ctx.reply(
       `🗂 <b>Yordam menyusi</b>\n\n` +
       `Quyidagi buyruqlar orqali botdan foydalanishingiz mumkin:\n\n` +
       `✅ <b>/start</b> - Ro'yxatdan o'tish\n` +
-      `📘 <b>/🧪 Testni boshlash</b> - Testni boshlash\n` +
-      `📘 <b>/malumotlarim</b> - malumotlaringiz\n` +
-      `📄 <b>/📄 Sertifikat olish</b> - Sertifikatni yuklab olish\n` +
+      `📘 <b>🧪 Testni boshlash</b> - Testni boshlash\n` +
+      `📘 <b>malumotlarim</b> - malumotlaringiz\n` +
+      `📄 <b>📄 Sertifikat olish</b> - Sertifikatni yuklab olish\n` +
       `🗑 <b>/delete</b> - Profilni o'chirish\n` +
       `<b>/help</b> - Yordam menyusi`,
       {
@@ -318,7 +320,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
               ['🧪 Testni boshlash',"🚫 Blokldan chiqarish"],
               ['/bot_information','malumotlarim'],
               ['/delete',"💖Admin o'chirish"],
-              ['📄 Sertifikat olish','Yordam'],
+              ['📄 Sertifikat olish','/help'],
               ['😎Search']
             ],
             resize_keyboard: true,
@@ -334,7 +336,7 @@ async handleAddAdminStart(@Ctx() ctx: Context) {
           reply_markup: {
             keyboard: [
               ['🧪 Testni boshlash','malumotlarim'],
-              ['📄 Sertifikat olish','Yordam'],
+              ['📄 Sertifikat olish','/help'],
               ['/bot_information']
             ],
             resize_keyboard: true,
@@ -364,7 +366,42 @@ async onText(@Ctx() ctx: Context) {
 
   const text = ctx.message.text.trim();
 
-  // 0. Kanalga obuna bo'lganini tekshirish
+  if (!userId || !text) {
+    await ctx.reply("❗ Iltimos matn yuboring.");
+    return;
+  }
+
+  // ✅ 0. Admin qo‘shish uchun ID kutilyaptimi?
+  if (this.awaitingAddAdmin.get(userId)) {
+    if (!/^\d+$/.test(text)) {
+      await ctx.reply("❗ Telegram ID faqat raqamlardan iborat bo'lishi kerak.");
+      this.awaitingAddAdmin.delete(userId); 
+
+      return;
+    }
+
+    const newAdminId = parseInt(text);
+    let data = await this.prisma.user.findFirst({where:{telegram_id:newAdminId}})
+    if (this.awaitingAddAdmin.get(userId)) {
+    if(!data){
+      ctx.reply("Bunday idli user topilmadi.\n Iltimos boshqattan sorov jonating")
+      this.awaitingAddAdmin.delete(userId); 
+
+      return
+    }
+  }
+    try {
+      this.awaitingAddAdmin.delete(userId);
+      await ctx.reply(`✅ ${newAdminId} endi admin bo'ldi.`);
+      this.awaitingAddAdmin.delete(userId); 
+
+    } catch (error) {
+      console.error(error);
+      await ctx.reply("❌ Admin qo'shishda xatolik yuz berdi.");
+    }
+    return;
+  }
+
   try {
     const member = await ctx.telegram.getChatMember('@Faxriddin_clever', userId);
     // @ts-ignore
@@ -383,7 +420,7 @@ async onText(@Ctx() ctx: Context) {
     this.awaitingBlock.delete(userId);
     const telegramId = parseInt(text);
     if (isNaN(telegramId)) {
-      await ctx.reply("❗ Telegram ID raqam bo'lishi kerak.");
+      await ctx.reply("❗ Telegram ID raqam bo'lishi kerak.")
       return;
     }
 
@@ -395,23 +432,21 @@ async onText(@Ctx() ctx: Context) {
     return;
   }
 
-  // 2. Admin delete authorization
   if (this.awaitingAdminDelete.get(userId)) {
     this.awaitingAdminDelete.delete(userId);
     if (text === "11201111") {
       this.tempDeleteTarget.set(userId, true);
-      await ctx.reply("✅ Admin o'chirish ruxsati berildi. Kimni o'chirmoqchisiz? Ismni yuboring:");
+      await ctx.reply("✅ Admin o'chirish ruxsati berildi. Kimni o'chirmoqchisiz? telegram_idni yuboring:");
     } else {
       await ctx.reply("❌ Noto'g'ri parol.");
     }
     return;
   }
 
-  // 3. Admin delete by name
   if (this.tempDeleteTarget.get(userId)) {
     this.tempDeleteTarget.delete(userId);
     const users = await this.prisma.user.findMany({
-      where: { firstname: { contains: text, mode: 'insensitive' } },
+      where: { telegram_id: Number(text) },
     });
 
     if (users.length === 0) {
@@ -425,7 +460,6 @@ async onText(@Ctx() ctx: Context) {
     return;
   }
 
-  // 4. Search by firstname
   if (this.awaitingSearch.get(userId)) {
     this.awaitingSearch.delete(userId);
     const users = await this.prisma.user.findMany({
@@ -447,7 +481,6 @@ async onText(@Ctx() ctx: Context) {
     return;
   }
 
-  // 5. Test davomida javoblar
   const state = userTestStates.get(userId);
   if (state) {
     const currentQuestion = state.questions[state.index];
@@ -498,7 +531,6 @@ async onText(@Ctx() ctx: Context) {
     return;
   }
 
-  // 6. Ro'yxatdan o'tish
   const regState = UserState.get(userId);
   if (!regState) {
     await ctx.reply("❗ Iltimos /start buyrug'ini bosing.");
@@ -578,6 +610,8 @@ async onText(@Ctx() ctx: Context) {
 
 
   
+
+
   
   
   @On("contact")
