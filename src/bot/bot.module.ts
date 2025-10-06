@@ -10,7 +10,7 @@ import { AdminUtils } from './bot.actions';
 @Module({
 
     imports:[TelegrafModule.forRoot({
-        token:process.env.Bot_Token as string
+        token:process.env.TELEGRAM_BOT_TOKEN as string
     }), RegistrationModule],
     providers:[UpdateBot,BotService,AdminUtils]
 
